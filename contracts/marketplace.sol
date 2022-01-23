@@ -34,21 +34,19 @@ interface IAqarNFT {
         ) external returns (uint);
 }
 
-contract AqarMarketplace is Ownable {
+contract AqarMarketplace is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using Address for address;
     using SafeERC20 for IERC20;
 
     /// @notice Events for the contract
     event OrderCreated(
-        address indexed orderOwner,
         address indexed nft,
         uint256 tokenId,
         uint256 quantity,
         uint256 price
     );
     event ItemSold(
-        address indexed orderOwner,
         address indexed buyer,
         address indexed nft,
         uint256 tokenId,
@@ -58,13 +56,11 @@ contract AqarMarketplace is Ownable {
         uint256 price
     );
     event OrderUpdated(
-        address indexed owner,
         address indexed nft,
         uint256 tokenId,
         uint256 newPrice
     );
     event OrderCancelled(
-        address indexed owner,
         address indexed nft,
         uint256 tokenId
     );
@@ -118,6 +114,68 @@ contract AqarMarketplace is Ownable {
         ReentrancyGuard(_owner);
     }
 
+    /// @notice Method for listing NFT
+    /// @param _nftAddress Address of NFT contract
+    /// @param _tokenId Token ID of NFT
+    /// @param _quantity token amount to list (needed for ERC-1155 NFTs, set as 1 for ERC-721)
+    /// @param _pricePerItem sale price for each iteam
+    function CreateOrder(
+        address _nftAddress,
+        uint256 _tokenId,
+        uint256 _quantity,
+        uint256 _pricePerItem
+    ) external notListed(_nftAddress, _tokenId) isAqarNFT(_nftAddress) {
+        require(IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155), "invalid nft address");
+        IERC1155 nft = IERC1155(_nftAddress);
+        require(
+            nft.balanceOf(_msgSender(), _tokenId) >= _quantity,
+            "must hold enough nfts"
+        );
+        require(
+            nft.isApprovedForAll(_msgSender(), address(this)),
+            "item not approved"
+        );
+        nft.safeTransferFrom(_msgSender(), address(this), _tokenId, _quantity,bytes(""));
+
+        listings[_nftAddress][_tokenId] = Listing(
+            _quantity,
+            _pricePerItem
+        );
+        emit OrderCreated(
+            _nftAddress,
+            _tokenId,
+            _quantity,
+            _pricePerItem
+        );
+    }
+
+    /// @notice Method for canceling listed NFT
+    function cancelListing(address _nftAddress, uint256 _tokenId)
+        external
+        nonReentrant
+        onlyOwner
+        isListed(_nftAddress, _tokenId)
+    {
+        _returnNftToOwner(_nftAddress, _tokenId);
+        _cancelListing(_nftAddress, _tokenId);
+    }
+
+    /// @notice Method for returning the NFT to owner
+    /// @param _nftAddress Address of NFT contract
+    /// @param _tokenId Token ID of NFT
+    function _returnNftToOwner( address _nftAddress, uint256 _tokenId) internal {
+        Listing storage listedItem = listings[_nftAddress][_tokenId];
+        IERC1155(_nftAddress).safeTransferFrom(address(this), owner(), _tokenId, listedItem.quantity, bytes(""));
+    }
+
+    function _cancelListing(
+        address _nftAddress,
+        uint256 _tokenId
+    ) private {
+        delete (listings[_nftAddress][_tokenId]);
+        emit OrderCancelled(_nftAddress, _tokenId);
+    }
+
     /// @notice Token minter function, mints the Sokos Token's
     /// @param _nftRegistry - the address of NFT
     /// @param supply - the token supply
@@ -131,11 +189,10 @@ contract AqarMarketplace is Ownable {
         bytes memory metaDataURI, 
         address _royaltiesRecipientAddress, 
         uint96 _percentageBasisPoints
-        ) public payable returns(uint){
+        ) public payable isAqarNFT(_nftRegistry) returns(uint){
         if(mintFee > 0){
             require(msg.value > mintFee,"Marketplace: insufficient mint fee");
         }
-        require(_nftRegistry == aqrAddressRegistry.assetsFactory(),"Marketplace: Invalid factory address");
         IAqarNFT registry = IAqarNFT(_nftRegistry);
         uint256 tokenId = registry.mint(supply, metaDataURI, payable(_royaltiesRecipientAddress), _percentageBasisPoints);
         IERC1155 nft = IERC1155(_nftRegistry);
@@ -187,18 +244,23 @@ contract AqarMarketplace is Ownable {
 
     modifier isListed(
         address _nftAddress,
-        uint256 _tokenId,
-        address _owner
+        uint256 _tokenId
     ) {
         Listing memory listing = listings[_nftAddress][_tokenId];
         require(listing.quantity > 0, "not listed item");
         _;
     }
 
+    modifier isAqarNFT(
+        address _nftAddress
+    ) {
+        require(_nftAddress == aqrAddressRegistry.assetsFactory(),"Marketplace: Invalid factory address");
+        _;
+    }
+
     modifier notListed(
         address _nftAddress,
-        uint256 _tokenId,
-        address _owner
+        uint256 _tokenId
     ) {
         Listing memory listing = listings[_nftAddress][_tokenId];
         require(listing.quantity == 0, "already listed");
