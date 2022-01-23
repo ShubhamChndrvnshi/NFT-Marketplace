@@ -100,7 +100,7 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
     /// @notice Platform fee receipient
     address public feeReceipient;
 
-    constructor() Ownable() {
+    constructor() {
         initialize(_msgSender(), 200, _msgSender());
     }
 
@@ -114,6 +114,25 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         ReentrancyGuard(_owner);
     }
 
+    /// @notice Method for updating listed NFT
+    /// @param _nftAddress Address of NFT contract
+    /// @param _tokenId Token ID of NFT
+    /// @param _newPrice New sale price for each iteam
+    function updateListing(
+        address _nftAddress,
+        uint256 _tokenId,
+        uint256 _newPrice
+    ) external nonReentrant onlyOwner isListed(_nftAddress, _tokenId) {
+        Listing storage listedItem = listings[_nftAddress][_tokenId];
+
+        listedItem.price = _newPrice;
+        emit OrderUpdated(
+            _nftAddress,
+            _tokenId,
+            _newPrice
+        );
+    }
+
     /// @notice Method for listing NFT
     /// @param _nftAddress Address of NFT contract
     /// @param _tokenId Token ID of NFT
@@ -124,7 +143,7 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         uint256 _tokenId,
         uint256 _quantity,
         uint256 _pricePerItem
-    ) external notListed(_nftAddress, _tokenId) isAqarNFT(_nftAddress) {
+    ) external notListed(_nftAddress, _tokenId) onlyOwner isAqarNFT(_nftAddress) {
         require(IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155), "invalid nft address");
         IERC1155 nft = IERC1155(_nftAddress);
         require(
@@ -189,10 +208,7 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         bytes memory metaDataURI, 
         address _royaltiesRecipientAddress, 
         uint96 _percentageBasisPoints
-        ) public payable isAqarNFT(_nftRegistry) returns(uint){
-        if(mintFee > 0){
-            require(msg.value > mintFee,"Marketplace: insufficient mint fee");
-        }
+        ) public onlyOwner isAqarNFT(_nftRegistry) returns(uint){
         IAqarNFT registry = IAqarNFT(_nftRegistry);
         uint256 tokenId = registry.mint(supply, metaDataURI, payable(_royaltiesRecipientAddress), _percentageBasisPoints);
         IERC1155 nft = IERC1155(_nftRegistry);

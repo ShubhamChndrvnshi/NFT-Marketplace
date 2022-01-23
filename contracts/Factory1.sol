@@ -41,6 +41,7 @@ contract SportsFactory is ERC1155, Ownable, RoyaltiesV2Impl {
 
     function setRoyalties(uint _tokenId, address payable _royaltiesRecipientAddress, uint96 _percentageBasisPoints ) public {
         require(owner() == _msgSender() || _msgSender() == aqrAddressRegistry.marketplace(), "AQR_FACTORY: Caller not allowed");
+        require(_percentageBasisPoints < 10000, "AQR_FACTORY: Royalty invalid");
         LibPart.Part[] memory _royalties = new LibPart.Part[](1);
         _royalties[0].value = _percentageBasisPoints;
         _royalties[0].account = _royaltiesRecipientAddress;
