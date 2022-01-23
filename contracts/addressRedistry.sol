@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AqarAddressRegistry is Ownable {
-    // bytes4 private constant INTERFACE_ID_ERC721 = 0x80ac58cd;
+    bytes4 private constant INTERFACE_ID_ERC1155 = 0xd9b67a26;
 
     /// @notice Aqarchain Marketplace contract
     address public marketplace;
@@ -46,6 +46,7 @@ contract AqarAddressRegistry is Ownable {
     function updateSportsFactory(address _factory)
         external
         onlyOwner
+        isERC1155(_factory)
     {
         sokosSportsFactory = _factory;
     }
@@ -54,7 +55,10 @@ contract AqarAddressRegistry is Ownable {
      @notice Update Sokos Characters Factory contract
      @dev Only admin
      */
-    function updateAssetsFactory(address _factory) external onlyOwner {
+    function updateAssetsFactory(address _factory) 
+        external 
+        onlyOwner 
+        isERC1155(_factory) {
         assetsFactory = _factory;
     }
 
@@ -64,5 +68,15 @@ contract AqarAddressRegistry is Ownable {
      */
     function updatePriceFeed(address _priceFeed) external onlyOwner {
         aqrPriceFeed = _priceFeed;
+    }
+
+     modifier isERC1155(
+        address _factory
+    ) {
+        require(
+            IERC165(_factory).supportsInterface(INTERFACE_ID_ERC1155),
+            "Not ERC1155"
+        );
+        _;
     }
 }
