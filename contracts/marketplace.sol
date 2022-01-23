@@ -71,9 +71,6 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         uint256 supply, 
         bytes metaData
     );
-    event UpdatePlatformFee(uint16 platformFee);
-    event UpdatePlatformFeeRecipient(address payable platformFeeRecipient);
-    event UpdatePlatformMintFee(uint16 platformMintFee);
     event RoyaltiesPaid(address nft, uint256 tokenId, uint value);
 
     bytes4 private constant INTERFACE_ID_ERC1155 = 0xd9b67a26;
