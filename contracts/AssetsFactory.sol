@@ -16,7 +16,7 @@ interface IAqarAddressRegistry {
  * @title AssetsFactory contract
  * @dev Extends ERC1155 Token Standards
  */
-contract SportsFactory is ERC1155, Ownable, RoyaltiesV2Impl {
+contract AssetsFactory is ERC1155, Ownable, RoyaltiesV2Impl {
     using Counters for Counters.Counter;
 
     string public name = "AQAR ASSETS TOKENS";
