@@ -6,6 +6,10 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import "@openzeppelin/contracts/interfaces/IERC2981.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface AqrPriceFeed {
     function getConversionRate(uint256 aqrAmount) external pure returns (uint256);
@@ -33,6 +37,7 @@ interface IAqarNFT {
 contract AqarMarketplace is Ownable {
     using SafeMath for uint256;
     using Address for address;
+    using SafeERC20 for IERC20;
 
     /// @notice Events for the contract
     event OrderCreated(
@@ -83,8 +88,8 @@ contract AqarMarketplace is Ownable {
         uint256 quantity;
         uint256 price;
     }
-    /// @notice NftAddress -> Token ID -> Owner -> Listing item
-    mapping(address => mapping(uint256 => mapping(address => Listing)))
+    /// @notice NftAddress -> Token ID -> Listing item
+    mapping(address => mapping(uint256 => Listing))
         public listings;
     /// @notice AQR price feed contract
     AqrPriceFeed internal priceFeed;
@@ -97,20 +102,78 @@ contract AqarMarketplace is Ownable {
     uint16 public mintFee;
 
     /// @notice Platform fee receipient
-    address payable public feeReceipient;
+    address public feeReceipient;
 
     constructor() Ownable() {
-        initialize(payable(_msgSender()), 200, _msgSender());
+        initialize(_msgSender(), 200, _msgSender());
     }
 
     /// @notice Contract initializer
-    function initialize(address payable _feeRecipient, uint16 _platformFee, address _owner)
+    function initialize(address _feeRecipient, uint16 _platformFee, address _owner)
         public onlyOwner
     {
         platformFee = _platformFee;
         feeReceipient = _feeRecipient;
         Ownable(_owner);
         ReentrancyGuard(_owner);
+    }
+
+    /// @notice Token minter function, mints the Sokos Token's
+    /// @param _nftRegistry - the address of NFT
+    /// @param supply - the token supply
+    /// @param metaDataURI - Asset meta Data URI 
+    /// @param _royaltiesRecipientAddress - the address of Royalty recipient
+    /// @param _percentageBasisPoints - Percentage of royalty payment
+    ///         minting NFT
+    function mintAqrNftTradables(
+        address _nftRegistry,
+        uint256 supply, 
+        bytes memory metaDataURI, 
+        address _royaltiesRecipientAddress, 
+        uint96 _percentageBasisPoints
+        ) public payable returns(uint){
+        if(mintFee > 0){
+            require(msg.value > mintFee,"Marketplace: insufficient mint fee");
+        }
+        require(_nftRegistry == aqrAddressRegistry.assetsFactory(),"Marketplace: Invalid factory address");
+        IAqarNFT registry = IAqarNFT(_nftRegistry);
+        uint256 tokenId = registry.mint(supply, metaDataURI, payable(_royaltiesRecipientAddress), _percentageBasisPoints);
+        IERC1155 nft = IERC1155(_nftRegistry);
+        nft.safeTransferFrom(address(this), _msgSender(), tokenId, supply, bytes(""));
+        emit TokenMint(_msgSender(), _nftRegistry, tokenId, supply, metaDataURI);
+        return tokenId;
+    }
+
+    /// @notice Transfers royalties to the rightsowner if applicable
+    /// @param nft - the address of NFT
+    /// @param tokenId - the NFT assed queried for royalties
+    /// @param grossSaleValue - the price at which the asset will be sold
+    /// @param _paytoken - the address of payment token
+    /// @return netSaleAmount - the value that will go to the seller after
+    ///         deducting royalties
+    function _deduceRoyalties(address nft, uint256 tokenId, uint256 grossSaleValue, address _paytoken)
+    internal returns (uint256 netSaleAmount) {
+        // Get amount of royalties to pays and recipient
+        (address royaltiesReceiver, uint256 royaltiesAmount) = IERC2981(nft)
+        .royaltyInfo(tokenId, grossSaleValue);
+        // Deduce royalties from sale value
+        uint256 netSaleValue = grossSaleValue - royaltiesAmount;
+        // Transfer royalties to rightholder if not zero
+        if (royaltiesAmount > 0) {
+            IERC20(_paytoken).safeTransfer(royaltiesReceiver, royaltiesAmount);
+        }
+        // Broadcast royalties payment
+        emit RoyaltiesPaid(nft, tokenId, royaltiesAmount);
+        return netSaleValue;
+    }
+
+    /// @notice Checks if NFT contract implements the ERC-2981 interface
+    /// @param _contract - the address of the NFT contract to query
+    /// @return true if ERC-2981 interface is supported, false otherwise
+    function _checkRoyalties(address _contract) internal view returns (bool) {
+        (bool success) = IERC2981(_contract).
+        supportsInterface(_INTERFACE_ID_ERC2981);
+        return success;
     }
 
     /**
@@ -127,7 +190,7 @@ contract AqarMarketplace is Ownable {
         uint256 _tokenId,
         address _owner
     ) {
-        Listing memory listing = listings[_nftAddress][_tokenId][_owner];
+        Listing memory listing = listings[_nftAddress][_tokenId];
         require(listing.quantity > 0, "not listed item");
         _;
     }
@@ -137,7 +200,7 @@ contract AqarMarketplace is Ownable {
         uint256 _tokenId,
         address _owner
     ) {
-        Listing memory listing = listings[_nftAddress][_tokenId][_owner];
+        Listing memory listing = listings[_nftAddress][_tokenId];
         require(listing.quantity == 0, "already listed");
         _;
     }
