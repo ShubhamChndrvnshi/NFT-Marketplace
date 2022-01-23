@@ -23,6 +23,8 @@ interface IAqarAddressRegistry {
     function sokosSportsFactory() external view returns (address);
 
     function aqrPriceFeed() external view returns (address);
+
+    function isAqrNFT(address _nft) external view returns(bool);
 }
 
 interface IAqarNFT {
@@ -267,7 +269,7 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
     modifier isAqarNFT(
         address _nftAddress
     ) {
-        require(_nftAddress == aqrAddressRegistry.assetsFactory(),"Marketplace: Invalid factory address");
+        require(aqrAddressRegistry.isAqrNFT(_nftAddress),"Marketplace: Invalid factory address");
         _;
     }
 

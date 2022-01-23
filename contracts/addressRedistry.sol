@@ -70,6 +70,13 @@ contract AqarAddressRegistry is Ownable {
         aqrPriceFeed = _priceFeed;
     }
 
+    function isAqrNFT(address _nft) external view returns(bool){
+        if((_nft == assetsFactory) || (_nft == sokosSportsFactory)){
+            return true;
+        }
+        return false;
+    }
+
      modifier isERC1155(
         address _factory
     ) {

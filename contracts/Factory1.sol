@@ -27,9 +27,6 @@ contract SportsFactory is ERC1155, Ownable, RoyaltiesV2Impl {
     bytes4 private constant INTERFACE_ID_ERC2981 = 0x2a55205a;
     // Tokens metadata hash in bytes
     mapping( uint => bytes ) internal _tokenUri;
-
-    mapping (uint256 => address) private Owners;
-    mapping (uint256 => address) public creators;
     mapping (uint256 => uint256) private tokenSupply;
 
     IAqarAddressRegistry public aqrAddressRegistry;
