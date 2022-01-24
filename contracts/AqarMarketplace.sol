@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-interface AqrPriceFeed {
+interface AqarPriceFeed {
     function getConversionRate(uint256 aqrAmount) external pure returns (uint256);
 }
 
@@ -87,7 +87,7 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
     mapping(address => mapping(uint256 => Listing))
         public listings;
     /// @notice AQR price feed contract
-    AqrPriceFeed internal priceFeed;
+    AqarPriceFeed internal priceFeed;
     /// @notice Aqarchain address registry
     IAqarAddressRegistry public aqrAddressRegistry;
     /// @notice Platform fee
@@ -99,7 +99,8 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
     /// @notice Platform fee receipient
     address public feeReceipient;
 
-    constructor() {
+    constructor(address _registry) {
+        updateAddressRegistry(_registry);
         initialize(_msgSender(), 200, _msgSender());
     }
 
@@ -253,9 +254,9 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
      @notice Update Aqarchain AddressRegistry contract
      @dev Only admin
      */
-    function updateAddressRegistry(address _registry) external onlyOwner {
+    function updateAddressRegistry(address _registry) public onlyOwner {
         aqrAddressRegistry = IAqarAddressRegistry(_registry);
-        priceFeed = AqrPriceFeed(aqrAddressRegistry.aqrPriceFeed());
+        priceFeed = AqarPriceFeed(aqrAddressRegistry.aqrPriceFeed());
     }
 
     modifier isListed(
