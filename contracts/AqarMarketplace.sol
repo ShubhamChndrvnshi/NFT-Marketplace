@@ -143,7 +143,7 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         uint256 _tokenId,
         uint256 _quantity,
         uint256 _pricePerItem
-    ) public notListed(_nftAddress, _tokenId) onlyOwner isAqarNFT(_nftAddress) {
+    ) external notListed(_nftAddress, _tokenId) onlyOwner isAqarNFT(_nftAddress) {
         require(IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155), "invalid nft address");
         IERC1155 nft = IERC1155(_nftAddress);
         require(
@@ -156,6 +156,29 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         );
         nft.safeTransferFrom(_msgSender(), address(this), _tokenId, _quantity,bytes(""));
 
+        listings[_nftAddress][_tokenId] = Listing(
+            _quantity,
+            _pricePerItem
+        );
+        emit OrderCreated(
+            _nftAddress,
+            _tokenId,
+            _quantity,
+            _pricePerItem
+        );
+    }
+
+    /// @notice Method for listing NFT
+    /// @param _nftAddress Address of NFT contract
+    /// @param _tokenId Token ID of NFT
+    /// @param _quantity token amount to list (needed for ERC-1155 NFTs, set as 1 for ERC-721)
+    /// @param _pricePerItem sale price for each iteam
+    function _CreateListing(
+        address _nftAddress,
+        uint256 _tokenId,
+        uint256 _quantity,
+        uint256 _pricePerItem
+    ) internal {
         listings[_nftAddress][_tokenId] = Listing(
             _quantity,
             _pricePerItem
@@ -213,7 +236,7 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         ) public onlyOwner isAqarNFT(_nftRegistry) returns(uint){
         IAqarNFT registry = IAqarNFT(_nftRegistry);
         uint256 tokenId = registry.mint(supply, metaDataURI, payable(_royaltiesRecipientAddress), _percentageBasisPoints);
-        CreateListing(_nftRegistry, tokenId, supply, _pricePerItem);
+        _CreateListing(_nftRegistry, tokenId, supply, _pricePerItem);
         emit TokenMint(_msgSender(), _nftRegistry, tokenId, supply, metaDataURI);
         return tokenId;
     }
