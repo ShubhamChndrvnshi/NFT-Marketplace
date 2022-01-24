@@ -137,12 +137,12 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
     /// @param _tokenId Token ID of NFT
     /// @param _quantity token amount to list (needed for ERC-1155 NFTs, set as 1 for ERC-721)
     /// @param _pricePerItem sale price for each iteam
-    function CreateOrder(
+    function CreateListing(
         address _nftAddress,
         uint256 _tokenId,
         uint256 _quantity,
         uint256 _pricePerItem
-    ) external notListed(_nftAddress, _tokenId) onlyOwner isAqarNFT(_nftAddress) {
+    ) public notListed(_nftAddress, _tokenId) onlyOwner isAqarNFT(_nftAddress) {
         require(IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155), "invalid nft address");
         IERC1155 nft = IERC1155(_nftAddress);
         require(
@@ -200,18 +200,19 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
     /// @param metaDataURI - Asset meta Data URI 
     /// @param _royaltiesRecipientAddress - the address of Royalty recipient
     /// @param _percentageBasisPoints - Percentage of royalty payment
+    /// @param _pricePerItem sale price for each iteam
     ///         minting NFT
     function mintAqrNftTradables(
         address _nftRegistry,
-        uint256 supply, 
+        uint256 supply,
+        uint256 _pricePerItem,
         bytes memory metaDataURI, 
         address _royaltiesRecipientAddress, 
         uint96 _percentageBasisPoints
         ) public onlyOwner isAqarNFT(_nftRegistry) returns(uint){
         IAqarNFT registry = IAqarNFT(_nftRegistry);
         uint256 tokenId = registry.mint(supply, metaDataURI, payable(_royaltiesRecipientAddress), _percentageBasisPoints);
-        IERC1155 nft = IERC1155(_nftRegistry);
-        nft.safeTransferFrom(address(this), _msgSender(), tokenId, supply, bytes(""));
+        CreateListing(_nftRegistry, tokenId, supply, _pricePerItem);
         emit TokenMint(_msgSender(), _nftRegistry, tokenId, supply, metaDataURI);
         return tokenId;
     }
