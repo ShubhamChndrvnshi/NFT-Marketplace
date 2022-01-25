@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
-import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 
 interface AqarPriceFeed {
     function getConversionRate(uint256 aqrAmount)
@@ -39,7 +39,7 @@ interface IAqarNFT {
     ) external returns (uint256);
 }
 
-contract AqarMarketplace is Ownable, ReentrancyGuard {
+contract AqarMarketplace is Ownable, ReentrancyGuard, Pausable {
     using SafeMath for uint256;
     using Address for address;
     using SafeERC20 for IERC20;
@@ -83,8 +83,9 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
 
     /// @notice Structure for offer
     struct Offer {
-        uint256 quantity;
+        address nft;
         uint256 tokenId;
+        uint256 quantity;
     }
     /// @notice NftAddress -> Token ID -> Listing item
     mapping(address => mapping(uint256 => Listing)) public listings;
@@ -111,7 +112,7 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         address _feeRecipient,
         uint16 _platformFee,
         address _owner
-    ) public onlyOwner {
+    ) public onlyOwner whenNotPaused {
         platformFee = _platformFee;
         feeReceipient = _feeRecipient;
         Ownable(_owner);
@@ -119,35 +120,47 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
     }
 
     /// @notice Method for offering item
-    /// @param _nftAddress NFT contract address
-    /// @param _offer offer
+    /// @param _nft NFT contract address array
+    /// @param _tokenIds NFT tokenIds array
+    /// @param _quantities NFT quantities
     /// @param _payToken Paying token
-    /// @param _pricePerItem Price per item
     function createOffer(
-        address _nftAddress,
-        Offer[] memory _offer,
-        address _payToken,
-        uint256 _pricePerItem
-    ) external isAqarNFT(_nftAddress) {
-        require(_offer.length > 0, "Marketplace: Invalid Offer array");
-
-        // To-do Calculate the price and get the value from buyer
-        for (uint256 i = 0; i < _offer.length; i++) {
-            Offer memory offer = _offer[i];
-            require(isNFTListed(_nftAddress, offer.tokenId), "not listed item");
-            Listing memory item = listings[_nftAddress][offer.tokenId];
+        address[] memory _nft,
+        uint256[] memory _tokenIds,
+        uint256[] memory _quantities,
+        address _payToken
+    ) external whenNotPaused {
+        uint256 length = _nft.length;
+        require(_tokenIds.length == length && _quantities.length == length, "Marketplace: Invalid Offer array");
+        for (uint256 i = 0; i < _nft.length; i++) {
+            Offer memory offer = Offer(_nft[i],_tokenIds[i],_quantities[i]);
+            require(isNFTListed(offer.nft, offer.tokenId), "not listed item");
+            Listing memory item = listings[offer.nft][offer.tokenId];
             require(item.quantity >= offer.quantity, "Not enough stock");
-            uint256 stock = _executeOrder(_nftAddress, offer.tokenId, _msgSender(), offer.quantity);
+            _deduceAQRPrice(item.price, offer.quantity);
+            uint256 stock = _executeOrder(offer.nft, offer.tokenId, _msgSender(), offer.quantity);
             emit ItemSold(
             _msgSender(),
-            _nftAddress,
+            offer.nft,
             offer.tokenId,
             offer.quantity,
             stock,
             _payToken,
-            _pricePerItem
+            item.price
             );
         }
+    }
+
+    /// @notice Method for deducing price in AQR
+    /// @param _pricePerItem NFT quantities
+    /// @param _quantity Paying token
+    function _deduceAQRPrice(
+        uint256 _pricePerItem,
+        uint256 _quantity
+    ) internal {
+        // To-do Calculate the price and get the value from buyer
+        // After getting the value, transfer same to recipient
+        // chainlink, oracle --> matic, quickswap router
     }
 
     /// @notice Method for executing an order
@@ -186,7 +199,7 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         address _nftAddress,
         uint256 _tokenId,
         uint256 _newPrice
-    ) external nonReentrant onlyOwner isListed(_nftAddress, _tokenId) {
+    ) external nonReentrant onlyOwner isListed(_nftAddress, _tokenId) whenNotPaused {
         Listing storage listedItem = listings[_nftAddress][_tokenId];
 
         listedItem.price = _newPrice;
@@ -208,6 +221,7 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         notListed(_nftAddress, _tokenId)
         onlyOwner
         isAqarNFT(_nftAddress)
+        whenNotPaused
     {
         require(
             IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC1155),
@@ -294,7 +308,7 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         bytes memory metaDataURI,
         address _royaltiesRecipientAddress,
         uint96 _percentageBasisPoints
-    ) public onlyOwner isAqarNFT(_nftRegistry) returns (uint256) {
+    ) public onlyOwner isAqarNFT(_nftRegistry) whenNotPaused returns (uint256) {
         IAqarNFT registry = IAqarNFT(_nftRegistry);
         uint256 tokenId = registry.mint(
             supply,
@@ -313,48 +327,41 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
         return tokenId;
     }
 
-    /// @notice Transfers royalties to the rightsowner if applicable
-    /// @param nft - the address of NFT
-    /// @param tokenId - the NFT assed queried for royalties
-    /// @param grossSaleValue - the price at which the asset will be sold
-    /// @param _paytoken - the address of payment token
-    /// @return netSaleAmount - the value that will go to the seller after
-    ///         deducting royalties
-    function _deduceRoyalties(
-        address nft,
-        uint256 tokenId,
-        uint256 grossSaleValue,
-        address _paytoken
-    ) internal returns (uint256 netSaleAmount) {
-        // Get amount of royalties to pays and recipient
-        (address royaltiesReceiver, uint256 royaltiesAmount) = IERC2981(nft)
-            .royaltyInfo(tokenId, grossSaleValue);
-        // Deduce royalties from sale value
-        uint256 netSaleValue = grossSaleValue - royaltiesAmount;
-        // Transfer royalties to rightholder if not zero
-        if (royaltiesAmount > 0) {
-            IERC20(_paytoken).safeTransfer(royaltiesReceiver, royaltiesAmount);
+    /// @notice Token minter function, mints the Sokos Token's
+    /// @param _nftRegistry - the address of NFT
+    /// @param supply - the token supply
+    /// @param metaDataURI - Asset meta Data URI
+    /// @param _royaltiesRecipientAddress - the address of Royalty recipient
+    /// @param _percentageBasisPoints - Percentage of royalty payment
+    /// @param _pricePerItem sale price for each iteam
+    ///         Batch minting NFT
+    function batchMintAqrNftTradables(
+        address[] memory _nftRegistry,
+        uint256[] memory supply,
+        uint256[] memory _pricePerItem,
+        bytes[] memory metaDataURI,
+        address _royaltiesRecipientAddress,
+        uint96 _percentageBasisPoints
+    ) external onlyOwner whenNotPaused {
+        uint256 length = _nftRegistry.length;
+        require(supply.length == length && _pricePerItem.length == length, "Marketplace: Invalid Offer array");
+        for (uint256 i = 0; i < length; i++) {
+            mintAqrNftTradables(
+                _nftRegistry[i],
+                supply[i],
+                _pricePerItem[i],
+                metaDataURI[i],
+                _royaltiesRecipientAddress,
+                _percentageBasisPoints
+                );
         }
-        // Broadcast royalties payment
-        emit RoyaltiesPaid(nft, tokenId, royaltiesAmount);
-        return netSaleValue;
-    }
-
-    /// @notice Checks if NFT contract implements the ERC-2981 interface
-    /// @param _contract - the address of the NFT contract to query
-    /// @return true if ERC-2981 interface is supported, false otherwise
-    function _checkRoyalties(address _contract) internal view returns (bool) {
-        bool success = IERC2981(_contract).supportsInterface(
-            _INTERFACE_ID_ERC2981
-        );
-        return success;
     }
 
     /**
      @notice Update Aqarchain AddressRegistry contract
      @dev Only admin
      */
-    function updateAddressRegistry(address _registry) public onlyOwner {
+    function updateAddressRegistry(address _registry) public onlyOwner whenNotPaused {
         aqrAddressRegistry = IAqarAddressRegistry(_registry);
         priceFeed = AqarPriceFeed(aqrAddressRegistry.aqrPriceFeed());
     }
@@ -372,6 +379,23 @@ contract AqarMarketplace is Ownable, ReentrancyGuard {
     {
         Listing memory listing = listings[_nftAddress][_tokenId];
         return listing.quantity > 0;
+    }
+
+    function pause() external onlyOwner {
+        super._pause();
+    }
+
+    function unPause() external onlyOwner {
+        super._unpause();
+    }
+
+    function EmergencyWithdraw() public onlyOwner {
+        Address.sendValue(payable(owner()), address(this).balance);
+    }
+
+    function  EmergencyWithdraw(address _acceptedToken) public onlyOwner {
+        IERC20 acceptedToken = IERC20(_acceptedToken);
+        acceptedToken.transfer( owner(), acceptedToken.balanceOf(owner()));
     }
 
     modifier isAqarNFT(address _nftAddress) {

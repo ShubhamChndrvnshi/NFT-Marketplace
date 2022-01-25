@@ -19,8 +19,8 @@ interface IAqarAddressRegistry {
 contract AssetsFactory is ERC1155, Ownable, RoyaltiesV2Impl {
     using Counters for Counters.Counter;
 
-    string public name = "AQAR ASSETS TOKENS";
-    string public symbol = "AQRASSETS";
+    string public name = "AQAR ASSETS COLLECTION";
+    string public symbol = "AQAR_STORE";
     Counters.Counter public tokenCounter;
     uint256 internal maxSupply;
 
@@ -88,7 +88,9 @@ contract AssetsFactory is ERC1155, Ownable, RoyaltiesV2Impl {
         tokenCounter.increment();
         _tokenUri[_tokenId] = metaDataURI;
         _mint(msg.sender, _tokenId, supply, metaDataURI);
-        setRoyalties(_tokenId, _royaltiesRecipientAddress, _percentageBasisPoints);
+        if(_percentageBasisPoints > 0){
+            setRoyalties(_tokenId, _royaltiesRecipientAddress, _percentageBasisPoints);
+        }
         tokenSupply[_tokenId] = supply;
         return _tokenId;
     }

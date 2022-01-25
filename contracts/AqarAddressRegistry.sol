@@ -5,6 +5,10 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+interface IMarketplace {
+    function paused() external view returns (bool);
+}
+
 contract AqarAddressRegistry is Ownable {
     bytes4 private constant INTERFACE_ID_ERC1155 = 0xd9b67a26;
 
@@ -24,7 +28,7 @@ contract AqarAddressRegistry is Ownable {
     address public aqrPriceFeed;
 
     /**
-     @notice Update SokosMarketplace contract
+     @notice Update Aqarchain marketplace contract
      @dev Only admin
      */
     function updateMarketplace(address _marketplace) external onlyOwner {
@@ -32,10 +36,12 @@ contract AqarAddressRegistry is Ownable {
     }
 
     /**
-     @notice Update SokosMarketplace contract
+     @notice Update Aqarchain marketplace contract
      @dev Only admin
      */
     function updatePrevMarketplace(address _marketplace) external onlyOwner {
+        IMarketplace market = IMarketplace(_marketplace);
+        require(market.paused(),"AddressRegistry: Prev Marketplace is still active");
         prevMarketplace = _marketplace;
     }
 
