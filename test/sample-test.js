@@ -1,19 +1,24 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const addressRegistry = require("../backend/abi/AddressRegistry.json")
+const Web3 = require("web3");
 
-describe("Greeter", function () {
-  it("Should return the new greeting once it's changed", async function () {
-    const Greeter = await ethers.getContractFactory("Greeter");
-    const greeter = await Greeter.deploy("Hello, world!");
-    await greeter.deployed();
-
-    expect(await greeter.greet()).to.equal("Hello, world!");
-
-    const setGreetingTx = await greeter.setGreeting("Hola, mundo!");
-
-    // wait until the transaction is mined
-    await setGreetingTx.wait();
-
-    expect(await greeter.greet()).to.equal("Hola, mundo!");
+describe("AddressRegistry", function () {
+  it("Should print address registry assets address", async function () {
+    const addressContract =  getAddressRegistryContract();
+    console.log("addressContract",await addressContract.marketplace())
   });
 });
+
+const getAddressRegistryContract = () => {
+  const provider = new ethers.providers.JsonRpcProvider("https://nd-462-884-459.p2pify.com/70eaca77551eac07163154a14c5e9432");
+  const address = "0x8ba1f109551bD432803012645Ac136ddd64DBA72"
+  const signer = new ethers.VoidSigner(address, provider)
+  const addressRegistryContract = new ethers.Contract(
+    addressRegistry.networks[80001].address,
+    addressRegistry.abi,
+    signer
+  );
+  return addressRegistryContract;
+};
+    
