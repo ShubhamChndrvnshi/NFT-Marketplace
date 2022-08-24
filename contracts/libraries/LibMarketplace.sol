@@ -70,11 +70,10 @@ library LibMarketplace {
         uint256 unsoldItemCount = mStore._items - mStore._soldItems;
         uint256 currentIndex = 0;
 
-        Listing[] memory items = new Listing[](unsoldItemCount);
-        for (uint256 i = 0; i < itemCount; i++) {
-            if (mStore.listings[i + 1].seller == address(0)) {
-                uint256 currentId = i + 1;
-                Listing storage currentItem = mStore.listings[currentId];
+        Listing[] memory items = new Listing[](unsoldItemCount-1);
+        for (uint256 i = 1; i <= itemCount; i++) {
+            if (mStore.listings[i].sold == false) {
+                Listing storage currentItem = mStore.listings[i];
                 items[currentIndex] = currentItem;
                 currentIndex += 1;
             }
