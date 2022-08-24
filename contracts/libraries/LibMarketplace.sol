@@ -9,7 +9,7 @@ import {LibMarketplace} from "./LibMarketplace.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 library LibMarketplace {
     bytes4 constant INTERFACE_ID_ERC721 = 0x80ac58cd;
@@ -70,7 +70,7 @@ library LibMarketplace {
         uint256 unsoldItemCount = mStore._items - mStore._soldItems;
         uint256 currentIndex = 0;
 
-        Listing[] memory items = new Listing[](unsoldItemCount-1);
+        Listing[] memory items = new Listing[](unsoldItemCount);
         for (uint256 i = 1; i <= itemCount; i++) {
             if (mStore.listings[i].sold == false) {
                 Listing storage currentItem = mStore.listings[i];
