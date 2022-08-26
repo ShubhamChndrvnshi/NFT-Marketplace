@@ -74,6 +74,7 @@ contract CollectionManagerFacet {
                     mStore.collections.length - 1
                 ];
                 mStore.collections.pop();
+                mStore.isSokosNFT[_collection] = false;
                 emit CollectionRemove(_collection);
                 return true;
             }

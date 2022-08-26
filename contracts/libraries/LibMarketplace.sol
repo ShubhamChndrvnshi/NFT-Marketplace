@@ -67,12 +67,25 @@ library LibMarketplace {
     function _fetchMarketplaceItems() internal view returns (Listing[] memory) {
         MarketPlaceStorage storage mStore = applicationStorage();
         uint256 itemCount = mStore._items;
-        uint256 unsoldItemCount = mStore._items - mStore._soldItems;
+        uint256 unsoldItemCount = 0;
+
+        for (uint256 i = 1; i <= itemCount; i++) {
+            if (
+                mStore.listings[i].seller != address(0) &&
+                mStore.listings[i].sold == false
+            ) {
+                unsoldItemCount++;
+            }
+        }
+
         uint256 currentIndex = 0;
 
         Listing[] memory items = new Listing[](unsoldItemCount);
         for (uint256 i = 1; i <= itemCount; i++) {
-            if (mStore.listings[i].sold == false) {
+            if (
+                mStore.listings[i].seller != address(0) &&
+                mStore.listings[i].sold == false
+            ) {
                 Listing storage currentItem = mStore.listings[i];
                 items[currentIndex] = currentItem;
                 currentIndex += 1;
@@ -89,18 +102,17 @@ library LibMarketplace {
         uint256 currentIndex = 0;
 
         for (uint256 i = 0; i < totalItemCount; i++) {
-            if (mStore.listings[i + 1].seller == msg.sender) {
+            if (mStore.listings[i].seller == msg.sender) {
                 itemCount += 1;
             }
         }
 
         Listing[] memory items = new Listing[](itemCount);
         for (uint256 i = 0; i < totalItemCount; i++) {
-            if (mStore.listings[i + 1].seller == msg.sender) {
-                uint256 currentId = i + 1;
-                Listing storage currentItem = mStore.listings[currentId];
+            if (mStore.listings[i].seller == msg.sender) {
+                Listing storage currentItem = mStore.listings[i];
                 items[currentIndex] = currentItem;
-                currentIndex += 1;
+                currentIndex++;
             }
         }
         return items;
