@@ -46,14 +46,15 @@ contract AdminFacet {
         uint256 _quantity,
         uint256 _pricePerItem,
         uint256 _startingTime,
-        uint256 _expiresAt
-    ) external onlyOwner notListed(_nftAddress, _tokenId, msg.sender) {
+        uint256 _expiresAt,
+        address seller
+    ) external onlyOwner notListed(_nftAddress, _tokenId, seller) {
         bool isERC1155;
         if (IERC165(_nftAddress).supportsInterface(INTERFACE_ID_ERC721)) {
             IERC721 nft = IERC721(_nftAddress);
-            require(nft.ownerOf(_tokenId) == msg.sender, "not owning item");
+            require(nft.ownerOf(_tokenId) == seller, "not owning item");
             require(
-                nft.isApprovedForAll(msg.sender, address(this)),
+                nft.isApprovedForAll(seller, address(this)),
                 "item not approved"
             );
             isERC1155 = false;
@@ -62,7 +63,7 @@ contract AdminFacet {
         ) {
             IERC1155Supply nft = IERC1155Supply(_nftAddress);
             require(
-                nft.isApprovedForAll(msg.sender, address(this)),
+                nft.isApprovedForAll(seller, address(this)),
                 "item not approved"
             );
             if (_expiresAt > block.timestamp) {
@@ -84,7 +85,7 @@ contract AdminFacet {
         }
         MarketPlaceStorage storage mStore = LibMarketplace.applicationStorage();
         ++mStore._items;
-        mStore.isListed[_nftAddress][_tokenId][msg.sender] = true;
+        mStore.isListed[_nftAddress][_tokenId][seller] = true;
         mStore.listings[mStore._items] = Listing(
             mStore._items,
             _nftAddress,
@@ -93,14 +94,14 @@ contract AdminFacet {
             _pricePerItem,
             _startingTime,
             _expiresAt,
-            msg.sender,
+            seller,
             false,
             isERC1155,
             true
         );
         emit ListingCreated(
             mStore._items,
-            msg.sender,
+            seller,
             _nftAddress,
             _tokenId,
             _quantity,
