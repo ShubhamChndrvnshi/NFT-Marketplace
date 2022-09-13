@@ -100,15 +100,14 @@ library LibMarketplace {
         uint256 totalItemCount = mStore._items;
         uint256 itemCount = 0;
         uint256 currentIndex = 0;
-
-        for (uint256 i = 0; i < totalItemCount; i++) {
+        for (uint256 i = 0; i <= totalItemCount; i++) {
             if (mStore.listings[i].seller == msg.sender) {
                 itemCount += 1;
             }
         }
 
         Listing[] memory items = new Listing[](itemCount);
-        for (uint256 i = 0; i < totalItemCount; i++) {
+        for (uint256 i = 0; i <= totalItemCount; i++) {
             if (mStore.listings[i].seller == msg.sender) {
                 Listing storage currentItem = mStore.listings[i];
                 items[currentIndex] = currentItem;

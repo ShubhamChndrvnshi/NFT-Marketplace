@@ -17,9 +17,11 @@ task("upgradefacet", "Upgrade facet function of diamond")
       ),
   })
     await facet.deployed()
-    console.log(facet.address)
+    console.log(`${taskArgs.facetname}: ${facet.address}`)
 
-    const tx = await DiamondCutFacet.diamondCut(
+    const tx = await DiamondCutFacet
+    // .connect(wallet)
+    .diamondCut(
       [{
         facetAddress: facet.address,
         facetAction: FacetCutAction.Replace,

@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {LibDiamond} from "../libraries/LibDiamond.sol";
 import {LibMarketplace} from "../libraries/LibMarketplace.sol";
 import {MarketPlaceStorage, Collection} from "../storage/MarketPlaceStorage.sol";
-import {SokosCollection} from "../util/SokosCollection.sol";
+import {SokosCollectionV2} from "../util/SokosCollectionV2.sol";
 
 contract CollectionManagerFacet {
     event CollectionAdd(string name, string symbol, string displayName, address collection);
@@ -38,7 +38,7 @@ contract CollectionManagerFacet {
                 "Registry: Duplicate collection symbol"
             );
         }
-        SokosCollection newCollection = new SokosCollection(
+        SokosCollectionV2 newCollection = new SokosCollectionV2(
             address(this),
             _name,
             _symbol,
